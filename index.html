@@ -252,26 +252,26 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
     <div class="task-item" id="task-ad1" onclick="watchAd('ad1')">
       <div class="task-icon-wrap"><span class="task-icon">&#9654;</span></div>
       <div class="task-info">
-        <div class="task-name">Watch Ad</div>
+        <div class="task-name">Claim Bonus</div>
         <div class="task-reward">+ 60,000 Coins</div>
       </div>
-      <button class="task-btn" id="btn-ad1">Watch</button>
+      <button class="task-btn" id="btn-ad1">Claim</button>
     </div>
     <div class="task-item" id="task-ad2" onclick="watchAd('ad2')">
       <div class="task-icon-wrap"><span class="task-icon">&#9654;</span></div>
       <div class="task-info">
-        <div class="task-name">Watch Ad</div>
+        <div class="task-name">Claim Reward</div>
         <div class="task-reward">+ 55,000 Coins</div>
       </div>
-      <button class="task-btn" id="btn-ad2">Watch</button>
+      <button class="task-btn" id="btn-ad2">Claim</button>
     </div>
     <div class="task-item" id="task-boost" onclick="watchAd('boost')">
       <div class="task-icon-wrap"><span class="task-icon">&#9889;</span></div>
       <div class="task-info">
-        <div class="task-name">2X Speed Mining</div>
+        <div class="task-name">Boost Mining 2X</div>
         <div class="task-reward">200 coins/sec for 1 Hour</div>
       </div>
-      <button class="task-btn" id="btn-boost">Watch</button>
+      <button class="task-btn" id="btn-boost">Claim</button>
     </div>
   </div>
 </div>
@@ -282,7 +282,10 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
     <div class="ref-title">Your Referral Link</div>
     <div class="ref-link-row">
       <div class="ref-link-input" id="refLinkDisplay">Loading...</div>
-      <button class="copy-btn" onclick="copyRefLink()">Copy</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="copy-btn" style="flex:1" onclick="copyRefLink()">Copy</button>
+      <button class="copy-btn" style="flex:1;background:linear-gradient(135deg,#1a6b1a,#25a825)" onclick="shareRefLink()">Share</button>
     </div>
     <div class="ref-stats-row">
       <div class="ref-stat">
@@ -334,6 +337,15 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
         <div class="mission-reward">+ 10,000 Coins</div>
       </div>
       <button class="task-btn" id="btn-telegram" onclick="doMission('telegram','https://t.me/EarnBeuro')">Go</button>
+    </div>
+
+    <div class="mission-item">
+      <div class="mission-icon-wrap telegram" style="font-size:22px;color:#fff;background:#1a1a2e">&#129302;</div>
+      <div class="mission-info">
+        <div class="mission-name">Join Our Mining Bot</div>
+        <div class="mission-reward">+ 15,000 Coins</div>
+      </div>
+      <button class="task-btn" id="btn-botjoin" onclick="doMission('botjoin','https://t.me/bullxminingbot/bullxmining')">Go</button>
     </div>
 
     <div class="mission-item" id="mission-invite10">
@@ -458,8 +470,8 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
   <div class="modal">
     <div class="modal-icon">&#9201;</div>
     <div class="modal-title">Mining Paused</div>
-    <div class="modal-text">Your 4-hour mining session has ended. Watch an ad to continue mining for the next 4 hours.</div>
-    <button class="modal-btn" onclick="watchAdToResume()">Watch Ad to Continue</button>
+    <div class="modal-text">Your 4-hour mining session has ended. Claim your bonus to continue mining for the next 4 hours.</div>
+    <button class="modal-btn" onclick="watchAdToResume()">Claim &amp; Continue</button>
   </div>
 </div>
 
@@ -520,7 +532,7 @@ let state = {
   lastSaveTime: Date.now(),
   lastDailyReset: Date.now(),
   tasks: { ad1: false, ad2: false, boost: false },
-  missions: { insta: false, whatsapp: false, telegram: false, invite10: false },
+  missions: { insta: false, whatsapp: false, telegram: false, botjoin: false, invite10: false },
   invitesSent: 0,
   usersJoined: 0,
   refCode: '',
@@ -687,7 +699,7 @@ function updateTimerDisplay() {
   const m = Math.floor((s%3600)/60).toString().padStart(2,'0');
   const sec = (s%60).toString().padStart(2,'0');
   document.getElementById('miningTimer').textContent = h+':'+m+':'+sec;
-  document.getElementById('timerLabel').textContent = state.miningActive ? 'Auto-mining active' : 'Mining paused - Watch ad to continue';
+  document.getElementById('timerLabel').textContent = state.miningActive ? 'Auto-mining active' : 'Mining paused - Claim bonus to continue';
   document.getElementById('miningStatus').textContent = state.miningActive ? '\u25B2 ACTIVE' : '\u25A0 PAUSED';
   document.getElementById('miningStatus').style.color = state.miningActive ? 'var(--success)' : 'var(--danger)';
   document.getElementById('miningRateDisplay').textContent = (state.boostActive ? '200' : '100')+'/s';
@@ -777,16 +789,19 @@ function watchAdToResume() {
 // ===== MISSIONS =====
 function doMission(type, url) {
   if(state.missions[type]) { showToast('Already claimed!'); return; }
+  adCallback = type;
   window.open(url,'_blank');
   setTimeout(()=>{
     state.missions[type] = true;
-    state.coins += 10000;
+    const rewards = { insta:10000, whatsapp:10000, telegram:10000, botjoin:15000 };
+    const reward = rewards[type] || 10000;
+    state.coins += reward;
     const btnId = 'btn-'+type;
     const btn = document.getElementById(btnId);
     if(btn) { btn.textContent='Claimed'; btn.className='task-btn claimed'; }
     updateBalanceDisplay();
     saveState();
-    showToast('+ 10,000 Coins added!');
+    showToast('+ '+reward.toLocaleString('en-IN')+' Coins added!');
   }, 2000);
 }
 
@@ -809,7 +824,7 @@ function checkInvite10() {
 
 // ===== REFERRAL =====
 function updateRefUI() {
-  const link = 'https://t.me/ScorpioMiner_bot?start='+state.refCode;
+  const link = 'https://t.me/Tap2scorpiobot?start='+state.refCode;
   const el = document.getElementById('refLinkDisplay');
   if(el) el.textContent = link;
   const js = document.getElementById('usersJoined');
@@ -829,12 +844,29 @@ function updateRefUI() {
 }
 
 function copyRefLink() {
-  const link = 'https://t.me/ScorpioMiner_bot?start='+state.refCode;
+  const link = 'https://t.me/Tap2scorpiobot?start='+state.refCode;
   if(navigator.clipboard) navigator.clipboard.writeText(link).then(()=>showToast('Link copied!'));
   else {
     const ta = document.createElement('textarea');
     ta.value=link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
     showToast('Link copied!');
+  }
+  // Don't increment invitesSent on copy — only on share
+  updateRefUI();
+  saveState();
+}
+
+function shareRefLink() {
+  const link = 'https://t.me/Tap2scorpiobot?start='+state.refCode;
+  const text = 'Join Scorpio Miner and earn coins! Auto-mine every second, tap for rewards. Use my link: '+link;
+  // Try Telegram share first (works inside Telegram)
+  if(window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.switchInlineQuery(text, ['users','groups','channels']);
+  } else if(navigator.share) {
+    navigator.share({ title:'Scorpio Miner', text: text, url: link });
+  } else {
+    // Fallback - open Telegram share
+    window.open('https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent('Join Scorpio Miner and earn coins! Auto-mine every second.'),'_blank');
   }
   state.invitesSent++;
   updateRefUI();
@@ -1012,7 +1044,7 @@ function saveProfile() {
 
 // ===== MISSIONS UI UPDATE =====
 function updateMissionsUI() {
-  const missions = ['insta','whatsapp','telegram'];
+  const missions = ['insta','whatsapp','telegram','botjoin'];
   missions.forEach(m=>{
     const btn = document.getElementById('btn-'+m);
     if(btn && state.missions[m]) { btn.textContent='Claimed'; btn.className='task-btn claimed'; }
