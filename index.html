@@ -188,10 +188,174 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
 .section-header{display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin:16px 0 10px}
 .section-header h3{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);font-weight:600}
 </style>
-<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js" async defer></script>
 <script src="//www.topcreativeformat.com/11092852/invoke.js"></script>
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script type="module">
+// ===== FIREBASE REALTIME DATABASE - REFERRAL SYSTEM =====
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, increment, onValue, push } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB0qM_-aM5hp-UWIKwAIiZtIl84ZKREbuc",
+  authDomain: "scorpio-miner.firebaseapp.com",
+  databaseURL: "https://scorpio-miner-default-rtdb.firebaseio.com",
+  projectId: "scorpio-miner",
+  storageBucket: "scorpio-miner.firebasestorage.app",
+  messagingSenderId: "80772660362",
+  appId: "1:80772660362:web:1fe9940fb35893fb780173"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+
+// Generate unique user ID (Telegram user ID or random)
+function getUserId() {
+  let uid = localStorage.getItem('scorpio_uid');
+  if(!uid) {
+    // Try Telegram WebApp user ID first
+    if(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+      uid = 'tg_' + window.Telegram.WebApp.initDataUnsafe.user.id;
+    } else {
+      uid = 'user_' + Math.random().toString(36).substring(2,15) + Date.now().toString(36);
+    }
+    localStorage.setItem('scorpio_uid', uid);
+  }
+  return uid;
+}
+
+// Get referral code from URL
+function getReferrerFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const startParam = urlParams.get('start') || urlParams.get('tgWebAppStartParam');
+  if(startParam && startParam.startsWith('SCM')) return startParam;
+  // Check Telegram WebApp start param
+  if(window.Telegram && window.Telegram.WebApp) {
+    const tgParam = window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param;
+    if(tgParam && tgParam.startsWith('SCM')) return tgParam;
+  }
+  return null;
+}
+
+// Register user in Firebase
+async function registerUser(refCode, username) {
+  const uid = getUserId();
+  const userRef = ref(db, 'users/' + uid);
+  
+  try {
+    const snapshot = await get(userRef);
+    if(!snapshot.exists()) {
+      // New user - register
+      const referrerCode = getReferrerFromURL();
+      await set(userRef, {
+        uid: uid,
+        username: username || 'Scorpio Miner',
+        refCode: refCode,
+        referredBy: referrerCode || null,
+        referralCount: 0,
+        invitesSent: 0,
+        createdAt: Date.now()
+      });
+      
+      // If came from referral link - update referrer's count
+      if(referrerCode) {
+        await updateReferrerCount(referrerCode, uid);
+      }
+      console.log('New user registered:', uid);
+    } else {
+      console.log('Existing user:', uid);
+    }
+  } catch(e) {
+    console.log('Firebase register error:', e);
+  }
+}
+
+// Update referrer's count when new user joins
+async function updateReferrerCount(referrerCode, newUserId) {
+  try {
+    // Find user with this refCode
+    const usersRef = ref(db, 'users');
+    const snapshot = await get(usersRef);
+    if(snapshot.exists()) {
+      const users = snapshot.val();
+      for(const uid in users) {
+        if(users[uid].refCode === referrerCode) {
+          // Found referrer - increment their count
+          await update(ref(db, 'users/' + uid), {
+            referralCount: (users[uid].referralCount || 0) + 1
+          });
+          // Also save referral record
+          await push(ref(db, 'referrals'), {
+            referrerId: uid,
+            referredId: newUserId,
+            timestamp: Date.now()
+          });
+          console.log('Referrer updated:', uid);
+          break;
+        }
+      }
+    }
+  } catch(e) {
+    console.log('Firebase referrer update error:', e);
+  }
+}
+
+// Load referral count from Firebase
+async function loadReferralCount() {
+  const uid = getUserId();
+  try {
+    const userRef = ref(db, 'users/' + uid);
+    const snapshot = await get(userRef);
+    if(snapshot.exists()) {
+      const data = snapshot.val();
+      state.usersJoined = data.referralCount || 0;
+      state.invitesSent = data.invitesSent || 0;
+      updateRefUI();
+      console.log('Referral count loaded:', state.usersJoined);
+    }
+  } catch(e) {
+    console.log('Firebase load error:', e);
+  }
+}
+
+// Save invites sent count to Firebase
+async function saveInvitesSent(count) {
+  const uid = getUserId();
+  try {
+    await update(ref(db, 'users/' + uid), {
+      invitesSent: count
+    });
+  } catch(e) {
+    console.log('Firebase save invites error:', e);
+  }
+}
+
+// Listen for real time referral updates
+function listenReferralUpdates() {
+  const uid = getUserId();
+  const userRef = ref(db, 'users/' + uid + '/referralCount');
+  onValue(userRef, (snapshot) => {
+    if(snapshot.exists()) {
+      const count = snapshot.val() || 0;
+      if(count !== state.usersJoined) {
+        state.usersJoined = count;
+        updateRefUI();
+        saveState();
+        if(count > 0) showToast('New referral joined! Total: ' + count);
+      }
+    }
+  });
+}
+
+// Expose functions globally
+window.fbRegisterUser = registerUser;
+window.fbLoadReferralCount = loadReferralCount;
+window.fbSaveInvitesSent = saveInvitesSent;
+window.fbListenReferralUpdates = listenReferralUpdates;
+window.fbGetUserId = getUserId;
+</script>
+
 </head>
 <body>
 <div id="app">
@@ -544,13 +708,33 @@ const COIN_IMG_32 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAA
 let AdControllerInstance = null;
 
 async function initAdsgram() {
-  try {
-    AdControllerInstance = await window.Adsgram.init({ blockId: "33847" });
-    console.log('Adsgram initialized OK');
-  } catch(e) {
-    console.log('Adsgram init failed:', e);
-    AdControllerInstance = null;
-  }
+  // Wait for Adsgram SDK to load with retry
+  let retries = 0;
+  const maxRetries = 10;
+  
+  const tryInit = async () => {
+    try {
+      if(typeof window.Adsgram === 'undefined') {
+        retries++;
+        if(retries < maxRetries) {
+          setTimeout(tryInit, 500); // retry every 500ms
+          return;
+        } else {
+          console.log('Adsgram SDK not loaded after retries - will use Monetag/fallback');
+          AdControllerInstance = null;
+          return;
+        }
+      }
+      AdControllerInstance = await window.Adsgram.init({ blockId: "33847" });
+      console.log('Adsgram initialized OK');
+    } catch(e) {
+      console.log('Adsgram init failed:', e.message);
+      AdControllerInstance = null;
+    }
+  };
+  
+  // Wait 1 second first for SDK to load
+  setTimeout(tryInit, 1000);
 }
 
 // MAIN FUNCTION - calls waterfall
@@ -560,7 +744,8 @@ function showAdsgramAd(callback) {
 
 // LEVEL 1 — Adsgram
 async function tryAdsgram(callback) {
-  if(!AdControllerInstance) {
+  // Check if Adsgram is available
+  if(!AdControllerInstance || typeof window.Adsgram === 'undefined') {
     console.log('Adsgram not ready, trying Monetag...');
     tryMonetag(callback);
     return;
@@ -571,12 +756,13 @@ async function tryAdsgram(callback) {
       console.log('Adsgram ad shown successfully');
       callback(true);
     } else {
-      console.log('Adsgram returned no result, trying Monetag...');
+      console.log('Adsgram no result, trying Monetag...');
       tryMonetag(callback);
     }
   } catch(e) {
-    console.log('Adsgram failed/empty:', e);
-    // Adsgram empty or error — try Monetag
+    const errMsg = e && e.message ? e.message : String(e);
+    console.log('Adsgram failed:', errMsg);
+    // Any error — try Monetag next
     tryMonetag(callback);
   }
 }
@@ -1247,6 +1433,16 @@ function init() {
   updateTasksUI();
   updateSpinUI();
   document.getElementById('profileUsername').value = state.username;
+  // Firebase init - referral tracking
+  setTimeout(async () => {
+    try {
+      if(window.fbRegisterUser) {
+        await window.fbRegisterUser(state.refCode, state.username);
+        await window.fbLoadReferralCount();
+        window.fbListenReferralUpdates();
+      }
+    } catch(e) { console.log('Firebase init error:', e); }
+  }, 1000);
   // tap events
   const arena = document.getElementById('coinArena');
   arena.addEventListener('touchstart', handleTap, {passive:false});
