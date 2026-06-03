@@ -85,6 +85,9 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
 .task-btn{background:linear-gradient(135deg,var(--gold) 0%,var(--gold2) 100%);border:none;border-radius:8px;padding:6px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:#1A0F00;cursor:pointer;letter-spacing:0.5px;white-space:nowrap;transition:all 0.2s}
 .task-btn:active{transform:scale(0.95)}
 .task-btn.claimed{background:var(--surface3);color:var(--text3);cursor:default}
+.task-btn.cooldown{background:var(--surface3);color:var(--gold);cursor:not-allowed;border:1px solid rgba(212,160,23,0.3)}
+.cooldown-timer{font-size:11px;color:var(--text3);margin-top:3px;letter-spacing:0.5px}
+
 /* TAP STATS */
 .tap-stats{display:flex;gap:8px;padding:0 16px;margin:12px 0}
 .tap-stat{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center}
@@ -116,6 +119,10 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
 .mission-info{flex:1}
 .mission-name{font-size:14px;font-weight:600;color:var(--text);letter-spacing:0.3px}
 .mission-reward{font-size:12px;color:var(--gold);font-weight:600}
+
+.adsgram-task-banner{width:100%;border-radius:12px;overflow:hidden}
+#adsgram-task-wrap{padding:0;background:none;border:none}
+
 .mission-status{font-size:11px;color:var(--success);margin-top:2px}
 /* WALLET PAGE */
 .wallet-balance-card{margin:16px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;text-align:center;position:relative;overflow:hidden}
@@ -188,10 +195,10 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
 .section-header{display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin:16px 0 10px}
 .section-header h3{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);font-weight:600}
 </style>
-<script src="https://sad.adsgram.ai/js/sad.min.js" async defer></script>
-<script src="//www.topcreativeformat.com/11092852/invoke.js"></script>
+
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <script type="module">
 // ===== FIREBASE REALTIME DATABASE - REFERRAL SYSTEM =====
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
@@ -301,7 +308,7 @@ async function updateReferrerCount(referrerCode, newUserId) {
   }
 }
 
-// Load referral count from Firebase
+// Load referral count from Firebase + sync with device
 async function loadReferralCount() {
   const uid = getUserId();
   try {
@@ -309,40 +316,74 @@ async function loadReferralCount() {
     const snapshot = await get(userRef);
     if(snapshot.exists()) {
       const data = snapshot.val();
-      state.usersJoined = data.referralCount || 0;
-      state.invitesSent = data.invitesSent || 0;
+      const fbJoined = data.referralCount || 0;
+      const fbInvites = data.invitesSent || 0;
+      
+      // Always take HIGHER value between Firebase and device
+      // (to prevent data loss)
+      state.usersJoined = Math.max(fbJoined, state.usersJoined || 0);
+      state.invitesSent = Math.max(fbInvites, state.invitesSent || 0);
+      
+      // Save to device immediately
+      saveState();
       updateRefUI();
-      console.log('Referral count loaded:', state.usersJoined);
+      console.log('Loaded - Joined:', state.usersJoined, 'Invites:', state.invitesSent);
+      
+      // Sync back to Firebase if device had higher value
+      if(state.invitesSent > fbInvites) {
+        await update(ref(db, 'users/' + uid), {
+          invitesSent: state.invitesSent
+        });
+      }
+    } else {
+      // No Firebase data - use device data
+      console.log('No Firebase data, using device data');
+      updateRefUI();
     }
   } catch(e) {
     console.log('Firebase load error:', e);
+    // Firebase failed - use device saved data (already in state)
+    updateRefUI();
   }
 }
 
-// Save invites sent count to Firebase
+// Save invites sent - Firebase + Device both
 async function saveInvitesSent(count) {
   const uid = getUserId();
+  // Save to device FIRST (instant, never fails)
+  state.invitesSent = count;
+  saveState();
+  // Then save to Firebase
   try {
     await update(ref(db, 'users/' + uid), {
       invitesSent: count
     });
+    console.log('Invites saved to Firebase:', count);
   } catch(e) {
-    console.log('Firebase save invites error:', e);
+    console.log('Firebase save invites error - saved on device only:', e);
+    // Device already saved above - no data loss
   }
 }
 
-// Listen for real time referral updates
+// Listen for real time referral updates + save to device
 function listenReferralUpdates() {
   const uid = getUserId();
   const userRef = ref(db, 'users/' + uid + '/referralCount');
   onValue(userRef, (snapshot) => {
     if(snapshot.exists()) {
       const count = snapshot.val() || 0;
-      if(count !== state.usersJoined) {
+      const prev = state.usersJoined || 0;
+      if(count > prev) {
         state.usersJoined = count;
-        updateRefUI();
+        // Save to device immediately
         saveState();
-        if(count > 0) showToast('New referral joined! Total: ' + count);
+        updateRefUI();
+        showToast('New referral joined! Total: ' + count);
+        console.log('Referral updated - Firebase + Device:', count);
+      } else if(count !== prev) {
+        state.usersJoined = count;
+        saveState();
+        updateRefUI();
       }
     }
   });
@@ -518,6 +559,16 @@ window.fbGetUserId = getUserId;
         <div class="mission-reward">+ 15,000 Coins</div>
       </div>
       <button class="task-btn" id="btn-botjoin" onclick="doMission('botjoin','https://t.me/bullxminingbot/bullxmining')">Go</button>
+    </div>
+
+
+    <!-- Adsgram Task Banner -->
+    <div class="mission-item" id="adsgram-task-wrap">
+      <adsgram-task 
+        data-block-id="task-33916"
+        class="adsgram-task-banner"
+        style="width:100%">
+      </adsgram-task>
     </div>
 
     <div class="mission-item" id="mission-invite10">
@@ -707,34 +758,38 @@ const COIN_IMG_32 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAA
 // Level 1: Adsgram → Level 2: Monetag → Level 3: Fallback countdown
 let AdControllerInstance = null;
 
-async function initAdsgram() {
-  // Wait for Adsgram SDK to load with retry
-  let retries = 0;
-  const maxRetries = 10;
+function initAdsgram() {
+  // Adsgram only works inside Telegram WebApp
+  // Try multiple times with delay
+  let attempts = 0;
+  const MAX = 5;
   
-  const tryInit = async () => {
+  function tryInit() {
+    attempts++;
     try {
-      if(typeof window.Adsgram === 'undefined') {
-        retries++;
-        if(retries < maxRetries) {
-          setTimeout(tryInit, 500); // retry every 500ms
-          return;
-        } else {
-          console.log('Adsgram SDK not loaded after retries - will use Monetag/fallback');
-          AdControllerInstance = null;
+      if(typeof window.Adsgram !== 'undefined' && window.Adsgram !== null) {
+        AdControllerInstance = window.Adsgram.init({ blockId: "33847" });
+        if(AdControllerInstance) {
+          console.log('Adsgram OK on attempt', attempts);
           return;
         }
       }
-      AdControllerInstance = await window.Adsgram.init({ blockId: "33847" });
-      console.log('Adsgram initialized OK');
+      if(attempts < MAX) {
+        setTimeout(tryInit, 800);
+      } else {
+        console.log('Adsgram unavailable - Monetag/fallback will be used');
+        AdControllerInstance = null;
+      }
     } catch(e) {
-      console.log('Adsgram init failed:', e.message);
-      AdControllerInstance = null;
+      if(attempts < MAX) {
+        setTimeout(tryInit, 800);
+      } else {
+        AdControllerInstance = null;
+      }
     }
-  };
+  }
   
-  // Wait 1 second first for SDK to load
-  setTimeout(tryInit, 1000);
+  setTimeout(tryInit, 500);
 }
 
 // MAIN FUNCTION - calls waterfall
@@ -742,53 +797,89 @@ function showAdsgramAd(callback) {
   tryAdsgram(callback);
 }
 
-// LEVEL 1 — Adsgram
-async function tryAdsgram(callback) {
-  // Check if Adsgram is available
-  if(!AdControllerInstance || typeof window.Adsgram === 'undefined') {
+// LEVEL 1 — Adsgram (Official method from docs)
+function tryAdsgram(callback) {
+  if(!AdControllerInstance) {
     console.log('Adsgram not ready, trying Monetag...');
     tryMonetag(callback);
     return;
   }
-  try {
-    const result = await AdControllerInstance.show();
-    if(result && result.done) {
-      console.log('Adsgram ad shown successfully');
+  AdControllerInstance
+    .show()
+    .then(() => {
+      // User watched ad successfully - give reward
+      console.log('Adsgram ad done - reward user');
       callback(true);
-    } else {
-      console.log('Adsgram no result, trying Monetag...');
-      tryMonetag(callback);
-    }
-  } catch(e) {
-    const errMsg = e && e.message ? e.message : String(e);
-    console.log('Adsgram failed:', errMsg);
-    // Any error — try Monetag next
-    tryMonetag(callback);
-  }
+    })
+    .catch((result) => {
+      // User skipped or error
+      console.log('Adsgram skipped/error:', result);
+      if(result && result.error) {
+        // Real error - try Monetag
+        tryMonetag(callback);
+      } else {
+        // User skipped - no reward
+        showToast('Watch full ad to get reward!');
+        callback(false);
+      }
+    });
 }
 
-// LEVEL 2 — Monetag
+// LEVEL 2 — Monetag (dynamic load)
+let monetagLoaded = false;
+let monetagLoading = false;
+
+function loadMonetag(cb) {
+  if(monetagLoaded && typeof show_11092852 !== 'undefined') { cb(); return; }
+  if(monetagLoading) { setTimeout(()=>loadMonetag(cb), 300); return; }
+  monetagLoading = true;
+  const s = document.createElement('script');
+  s.src = 'https://www.topcreativeformat.com/11092852/invoke.js';
+  s.async = true;
+  s.onload = () => {
+    monetagLoaded = true;
+    monetagLoading = false;
+    console.log('Monetag loaded OK');
+    setTimeout(cb, 300);
+  };
+  s.onerror = () => {
+    monetagLoading = false;
+    console.log('Monetag script load failed');
+    cb(); // proceed anyway
+  };
+  document.head.appendChild(s);
+}
+
 function tryMonetag(callback) {
   console.log('Trying Monetag...');
-  if(typeof show_11092852 === 'undefined') {
-    console.log('Monetag not loaded, using fallback...');
-    showFallbackAd(callback);
-    return;
-  }
-  try {
-    show_11092852('pop')
-      .then(() => {
-        console.log('Monetag ad shown successfully');
+  loadMonetag(() => {
+    if(typeof show_11092852 === 'undefined') {
+      console.log('Monetag function not found, using fallback...');
+      showFallbackAd(callback);
+      return;
+    }
+    try {
+      const result = show_11092852('pop');
+      if(result && typeof result.then === 'function') {
+        result
+          .then(() => {
+            console.log('Monetag ad shown OK');
+            callback(true);
+          })
+          .catch((e) => {
+            console.log('Monetag ad failed:', e);
+            showFallbackAd(callback);
+          });
+      } else {
+        // No promise returned - treat as success
+        console.log('Monetag called (no promise)');
         callback(true);
-      })
-      .catch((e) => {
-        console.log('Monetag failed:', e);
-        showFallbackAd(callback);
-      });
-  } catch(e) {
-    console.log('Monetag error:', e);
-    showFallbackAd(callback);
-  }
+      }
+    } catch(e) {
+      console.log('Monetag error:', e);
+      showFallbackAd(callback);
+    }
+  });
 }
 
 // LEVEL 3 — Fallback countdown (always works)
@@ -830,6 +921,8 @@ let state = {
   lastSaveTime: Date.now(),
   lastDailyReset: Date.now(),
   tasks: { ad1: false, ad2: false, boost: false },
+  lastAdClaimTime: 0,
+  cooldownSeconds: 90,
   missions: { insta: false, whatsapp: false, telegram: false, botjoin: false, invite10: false },
   invitesSent: 0,
   usersJoined: 0,
@@ -1028,6 +1121,19 @@ let adCallback = null;
 
 function watchAd(type) {
   if(state.tasks[type]) { showToast('Already claimed today!'); return; }
+  
+  // Check 90 second cooldown
+  const now = Date.now();
+  const lastClaim = state.lastAdClaimTime || 0;
+  const elapsed = Math.floor((now - lastClaim) / 1000);
+  const cooldown = 90;
+  
+  if(lastClaim > 0 && elapsed < cooldown) {
+    const remaining = cooldown - elapsed;
+    showToast('Wait ' + remaining + ' seconds before next claim!');
+    return;
+  }
+  
   adCallback = type;
   const rewards = { ad1: '60,000 Coins', ad2: '55,000 Coins', boost: '2X Mining for 1 Hour' };
   document.getElementById('adRewardText').textContent = 'Reward: ' + rewards[type];
@@ -1040,6 +1146,8 @@ function watchAd(type) {
 
 function giveAdReward(type) {
   state.tasks[type] = true;
+  state.lastAdClaimTime = Date.now();
+  
   if(type==='ad1') { state.coins += 60000; showToast('+ 60,000 Coins added!'); }
   else if(type==='ad2') { state.coins += 55000; showToast('+ 55,000 Coins added!'); }
   else if(type==='boost') {
@@ -1054,6 +1162,61 @@ function giveAdReward(type) {
   if(btn) { btn.textContent='Claimed'; btn.className='task-btn claimed'; }
   updateBalanceDisplay();
   saveState();
+  
+  // Start cooldown countdown on ALL unclaimed buttons
+  startCooldownUI();
+}
+
+let cooldownUIInterval = null;
+
+function startCooldownUI() {
+  if(cooldownUIInterval) clearInterval(cooldownUIInterval);
+  
+  const updateBtns = () => {
+    const now = Date.now();
+    const lastClaim = state.lastAdClaimTime || 0;
+    const elapsed = Math.floor((now - lastClaim) / 1000);
+    const cooldown = 90;
+    const remaining = cooldown - elapsed;
+    
+    const btns = ['btn-ad1','btn-ad2','btn-boost'];
+    const types = ['ad1','ad2','boost'];
+    
+    if(remaining <= 0) {
+      // Cooldown done - restore unclaimed buttons
+      clearInterval(cooldownUIInterval);
+      cooldownUIInterval = null;
+      types.forEach((t,i) => {
+        const btn = document.getElementById(btns[i]);
+        if(btn && !state.tasks[t]) {
+          btn.textContent = 'Claim';
+          btn.className = 'task-btn';
+        }
+      });
+      return;
+    }
+    
+    // Show countdown on unclaimed buttons
+    types.forEach((t,i) => {
+      const btn = document.getElementById(btns[i]);
+      if(btn && !state.tasks[t]) {
+        btn.textContent = remaining + 's';
+        btn.className = 'task-btn cooldown';
+      }
+    });
+  };
+  
+  updateBtns(); // immediate
+  cooldownUIInterval = setInterval(updateBtns, 1000);
+}
+
+function checkCooldownOnLoad() {
+  const now = Date.now();
+  const lastClaim = state.lastAdClaimTime || 0;
+  const elapsed = Math.floor((now - lastClaim) / 1000);
+  if(lastClaim > 0 && elapsed < 90) {
+    startCooldownUI();
+  }
 }
 
 function watchAdToResume() {
@@ -1431,6 +1594,7 @@ function init() {
   updateRefUI();
   updateMissionsUI();
   updateTasksUI();
+  checkCooldownOnLoad();
   updateSpinUI();
   document.getElementById('profileUsername').value = state.username;
   // Firebase init - referral tracking
@@ -1453,9 +1617,20 @@ function init() {
 }
 
 window.addEventListener('load', function(){ init(); initAdsgram(); });
-window.addEventListener('beforeunload', saveState);
+window.addEventListener('beforeunload', ()=>{
+  saveState();
+  if(window.fbSaveInvitesSent && state.invitesSent > 0) {
+    window.fbSaveInvitesSent(state.invitesSent);
+  }
+});
 document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden) saveState();
+  if(document.hidden) {
+    saveState();
+    // Also sync invites to Firebase when app goes to background
+    if(window.fbSaveInvitesSent && state.invitesSent > 0) {
+      window.fbSaveInvitesSent(state.invitesSent);
+    }
+  }
   else {
     const offline = calcOfflineCoins();
     if(offline > 5) {
