@@ -85,6 +85,20 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
 .task-btn{background:linear-gradient(135deg,var(--gold) 0%,var(--gold2) 100%);border:none;border-radius:8px;padding:6px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:#1A0F00;cursor:pointer;letter-spacing:0.5px;white-space:nowrap;transition:all 0.2s}
 .task-btn:active{transform:scale(0.95)}
 .task-btn.claimed{background:var(--surface3);color:var(--text3);cursor:default}
+
+.inr-balance-bar{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:10px 16px;margin:0 16px 12px;display:flex;align-items:center;justify-content:space-between}
+.inr-bal-label{font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase}
+.inr-bal-val{font-family:'Cinzel',serif;font-size:20px;font-weight:700;color:#4CAF50}
+.inr-bal-sub{font-size:11px;color:var(--text3);margin-top:1px}
+.mission4h-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.mission4h-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.mission4h-info{flex:1}
+.mission4h-name{font-size:14px;font-weight:600;color:var(--text);letter-spacing:0.3px}
+.mission4h-reward{font-size:13px;color:#4CAF50;font-weight:700}
+.mission4h-timer{font-size:11px;color:var(--text3);margin-top:2px}
+.reset-timer-bar{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:8px 14px;margin:0 16px 12px;text-align:center;font-size:12px;color:var(--text3);letter-spacing:0.5px}
+.reset-timer-val{color:var(--gold);font-weight:700;font-family:'Rajdhani',sans-serif}
+
 .task-btn.cooldown{background:var(--surface3);color:var(--gold);cursor:not-allowed;border:1px solid rgba(212,160,23,0.3)}
 .cooldown-timer{font-size:11px;color:var(--text3);margin-top:3px;letter-spacing:0.5px}
 
@@ -120,8 +134,9 @@ html,body{width:100%;height:100%;background:var(--bg);overflow:hidden;font-famil
 .mission-name{font-size:14px;font-weight:600;color:var(--text);letter-spacing:0.3px}
 .mission-reward{font-size:12px;color:var(--gold);font-weight:600}
 
-.adsgram-task-banner{width:100%;border-radius:12px;overflow:hidden}
-#adsgram-task-wrap{padding:0;background:none;border:none}
+.adsgram-task-banner{width:100%;border-radius:12px;overflow:hidden;display:block;min-height:60px}
+#adsgram-task-wrap{padding:0!important;background:none!important;border:none!important;display:block!important;min-height:60px}
+adsgram-task{display:block;width:100%;min-height:60px}
 
 .mission-status{font-size:11px;color:var(--success);margin-top:2px}
 /* WALLET PAGE */
@@ -427,6 +442,16 @@ window.fbGetUserId = getUserId;
     <div class="balance-inr">&#8377;<span id="homeInr">0.00</span></div>
   </div>
 
+  <div class="inr-balance-bar">
+    <div>
+      <div class="inr-bal-label">Rupee Balance</div>
+      <div class="inr-bal-sub">Direct INR earned</div>
+    </div>
+    <div style="text-align:right">
+      <div class="inr-bal-val">&#8377; <span id="homeInrBalance">0.00</span></div>
+    </div>
+  </div>
+
   <div class="coin-arena" id="coinArena">
     <div class="coin-ring-outer">
       <div class="coin-dots" id="coinDots"></div>
@@ -487,6 +512,15 @@ window.fbGetUserId = getUserId;
       <button class="task-btn" id="btn-boost">Claim</button>
     </div>
   </div>
+  <!-- 4 HOUR MISSIONS -->
+  <div class="tasks-section" style="margin-top:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title" style="margin:0">Bonus Missions</div>
+      <div class="reset-timer-val" id="missions4hTimer" style="font-size:12px;color:var(--gold)">Resets in <span id="m4hCountdown">04:00:00</span></div>
+    </div>
+    <div id="missions4hList"></div>
+  </div>
+
 </div>
 
 <!-- REFERRAL -->
@@ -564,11 +598,7 @@ window.fbGetUserId = getUserId;
 
     <!-- Adsgram Task Banner -->
     <div class="mission-item" id="adsgram-task-wrap">
-      <adsgram-task 
-        data-block-id="task-33916"
-        class="adsgram-task-banner"
-        style="width:100%">
-      </adsgram-task>
+      <adsgram-task data-block-id="task-33916" style="display:block;width:100%;min-height:60px;border-radius:12px;overflow:hidden"></adsgram-task>
     </div>
 
     <div class="mission-item" id="mission-invite10">
@@ -592,6 +622,10 @@ window.fbGetUserId = getUserId;
       <span class="num" id="walletCoins">0</span>
     </div>
     <div class="wallet-inr">&#8377; <span id="walletInr">0.00</span></div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Direct INR Earned</div>
+      <div style="font-family:'Cinzel',serif;font-size:22px;font-weight:700;color:#4CAF50">&#8377; <span id="walletInrDirect">0.00</span></div>
+    </div>
   </div>
 
   <!-- SPIN BUTTON ONLY ON WALLET -->
@@ -923,6 +957,10 @@ let state = {
   tasks: { ad1: false, ad2: false, boost: false },
   lastAdClaimTime: 0,
   cooldownSeconds: 90,
+  inrBalance: 0,
+  missions4h: {},
+  missions4hResetTime: 0,
+  lastMissionClaimTime: 0,
   missions: { insta: false, whatsapp: false, telegram: false, botjoin: false, invite10: false },
   invitesSent: 0,
   usersJoined: 0,
@@ -1056,6 +1094,186 @@ function updateTapDisplay() {
   if(el) el.textContent = tapCount+'/'+MAX_TAPS_PER_SEC;
 }
 
+
+// ===== 4 HOUR MISSIONS SYSTEM =====
+const MISSIONS_4H = [
+  { id:'m1', name:'Mining Streak Bonus',    icon:'&#9889;', bg:'#1a1a00', reward:10,  label:'Claim ₹10' },
+  { id:'m2', name:'Speed Miner Reward',     icon:'&#128176;', bg:'#001a0a', reward:20,  label:'Claim ₹20' },
+  { id:'m3', name:'Power Tap Bonus',        icon:'&#128170;', bg:'#1a0000', reward:15,  label:'Claim ₹15' },
+  { id:'m4', name:'Coin Collector Prize',   icon:'&#127881;', bg:'#001a1a', reward:30,  label:'Claim ₹30' },
+  { id:'m5', name:'Elite Miner Reward',     icon:'&#127775;', bg:'#1a001a', reward:50,  label:'Claim ₹50' },
+  { id:'m6', name:'Scorpio Hunter Bonus',   icon:'&#9890;',  bg:'#1a0a00', reward:25,  label:'Claim ₹25' },
+  { id:'m7', name:'Diamond Miner Prize',    icon:'&#128142;', bg:'#00001a', reward:60,  label:'Claim ₹60' },
+  { id:'m8', name:'Gold Rush Reward',       icon:'&#127868;', bg:'#1a1000', reward:40,  label:'Claim ₹40' },
+  { id:'m9', name:'Platinum Bonus',         icon:'&#128081;', bg:'#0a1a00', reward:35,  label:'Claim ₹35' },
+  { id:'m10',name:'Legend Miner Jackpot',   icon:'&#128293;', bg:'#1a0808', reward:100, label:'Claim ₹100' },
+];
+
+const MISSIONS_4H_DURATION = 4 * 3600 * 1000; // 4 hours in ms
+const MISSION_COOLDOWN_SEC = 30; // 30 sec between claims
+
+let m4hCooldownInterval = null;
+let m4hResetInterval = null;
+
+function check4hMissionReset() {
+  const now = Date.now();
+  const resetTime = state.missions4hResetTime || 0;
+  if(now - resetTime >= MISSIONS_4H_DURATION) {
+    // Reset all missions
+    state.missions4h = {};
+    state.missions4hResetTime = now;
+    saveState();
+    console.log('4h missions reset!');
+  }
+}
+
+function getM4hTimeLeft() {
+  const now = Date.now();
+  const resetTime = state.missions4hResetTime || now;
+  const elapsed = now - resetTime;
+  const left = Math.max(0, MISSIONS_4H_DURATION - elapsed);
+  return left;
+}
+
+function formatMs(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600).toString().padStart(2,'0');
+  const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2,'0');
+  const s = (totalSec % 60).toString().padStart(2,'0');
+  return h+':'+m+':'+s;
+}
+
+function start4hResetTimer() {
+  if(m4hResetInterval) clearInterval(m4hResetInterval);
+  m4hResetInterval = setInterval(()=>{
+    check4hMissionReset();
+    const left = getM4hTimeLeft();
+    const el = document.getElementById('m4hCountdown');
+    if(el) el.textContent = formatMs(left);
+    if(left <= 0) {
+      render4hMissions();
+    }
+  }, 1000);
+}
+
+function render4hMissions() {
+  const container = document.getElementById('missions4hList');
+  if(!container) return;
+  container.innerHTML = '';
+  
+  MISSIONS_4H.forEach(m => {
+    const claimed = state.missions4h[m.id];
+    const div = document.createElement('div');
+    div.className = 'mission4h-item';
+    div.id = 'mission4h-' + m.id;
+    div.innerHTML = `
+      <div class="mission4h-icon" style="background:${m.bg};border:1px solid rgba(212,160,23,0.2)">${m.icon}</div>
+      <div class="mission4h-info">
+        <div class="mission4h-name">${m.name}</div>
+        <div class="mission4h-reward">+ ₹${m.reward} Direct</div>
+        <div class="mission4h-timer" id="m4h-sub-${m.id}">${claimed ? 'Claimed' : 'Available'}</div>
+      </div>
+      <button class="task-btn ${claimed ? 'claimed' : ''}" id="m4h-btn-${m.id}" 
+        onclick="claim4hMission('${m.id}')" 
+        ${claimed ? 'disabled' : ''}>
+        ${claimed ? 'Claimed' : m.label}
+      </button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function claim4hMission(id) {
+  // Check if already claimed
+  if(state.missions4h[id]) { showToast('Already claimed!'); return; }
+  
+  // Check 30 sec cooldown
+  const now = Date.now();
+  const lastClaim = state.lastMissionClaimTime || 0;
+  const elapsed = Math.floor((now - lastClaim) / 1000);
+  
+  if(lastClaim > 0 && elapsed < MISSION_COOLDOWN_SEC) {
+    const remaining = MISSION_COOLDOWN_SEC - elapsed;
+    showToast('Wait ' + remaining + ' seconds!');
+    startM4hCooldownUI(remaining);
+    return;
+  }
+  
+  // Show ad then give reward
+  showAdsgramAd(function(success) {
+    if(success) {
+      const mission = MISSIONS_4H.find(m => m.id === id);
+      if(!mission) return;
+      
+      // Add INR directly
+      state.inrBalance = parseFloat((state.inrBalance || 0) + mission.reward).toFixed(2);
+      state.inrBalance = parseFloat(state.inrBalance);
+      state.missions4h[id] = true;
+      state.lastMissionClaimTime = Date.now();
+      
+      saveState();
+      updateInrDisplay();
+      render4hMissions();
+      showToast('+ ₹' + mission.reward + ' added to your balance!');
+      
+      // Start cooldown on all unclaimed buttons
+      startM4hCooldownUI(MISSION_COOLDOWN_SEC);
+    }
+  });
+}
+
+function startM4hCooldownUI(seconds) {
+  if(m4hCooldownInterval) clearInterval(m4hCooldownInterval);
+  let remaining = seconds;
+  
+  const update = () => {
+    remaining--;
+    MISSIONS_4H.forEach(m => {
+      if(!state.missions4h[m.id]) {
+        const btn = document.getElementById('m4h-btn-' + m.id);
+        const sub = document.getElementById('m4h-sub-' + m.id);
+        if(btn) {
+          if(remaining > 0) {
+            btn.textContent = remaining + 's';
+            btn.className = 'task-btn cooldown';
+            btn.disabled = true;
+          } else {
+            btn.textContent = m.label;
+            btn.className = 'task-btn';
+            btn.disabled = false;
+          }
+        }
+        if(sub && remaining > 0) sub.textContent = 'Wait ' + remaining + 's';
+        if(sub && remaining <= 0) sub.textContent = 'Available';
+      }
+    });
+    if(remaining <= 0) {
+      clearInterval(m4hCooldownInterval);
+      m4hCooldownInterval = null;
+    }
+  };
+  
+  m4hCooldownInterval = setInterval(update, 1000);
+}
+
+function checkM4hCooldownOnLoad() {
+  const now = Date.now();
+  const lastClaim = state.lastMissionClaimTime || 0;
+  const elapsed = Math.floor((now - lastClaim) / 1000);
+  if(lastClaim > 0 && elapsed < MISSION_COOLDOWN_SEC) {
+    startM4hCooldownUI(MISSION_COOLDOWN_SEC - elapsed);
+  }
+}
+
+function updateInrDisplay() {
+  const val = parseFloat(state.inrBalance || 0).toFixed(2);
+  const h = document.getElementById('homeInrBalance');
+  const w = document.getElementById('walletInrDirect');
+  if(h) h.textContent = val;
+  if(w) w.textContent = val;
+}
+
+
 // ===== MINING TIMER =====
 let miningInterval = null;
 let boostInterval = null;
@@ -1103,6 +1321,7 @@ function updateTimerDisplay() {
 }
 
 function updateBalanceDisplay() {
+  updateInrDisplay();
   const coins = Math.floor(state.coins);
   const inr = (coins * COIN_VALUE).toFixed(2);
   const fmt = coins.toLocaleString('en-IN');
@@ -1595,6 +1814,11 @@ function init() {
   updateMissionsUI();
   updateTasksUI();
   checkCooldownOnLoad();
+  check4hMissionReset();
+  render4hMissions();
+  start4hResetTimer();
+  checkM4hCooldownOnLoad();
+  updateInrDisplay();
   updateSpinUI();
   document.getElementById('profileUsername').value = state.username;
   // Firebase init - referral tracking
